@@ -1,32 +1,34 @@
 const functions = require('firebase-functions');
 const firebase = require('firebase-admin');
 
+firebase.initializeApp();
 
-// // Create and Deploy Your First Cloud Functions
-// // https://firebase.google.com/docs/functions/write-firebase-functions
-//
-// exports.helloWorld = functions.https.onRequest((request, response) => {
-//  response.send("Hello from Firebase!");
-// });
-
-exports.criarUsuario = functions.https.onRequest((request, response) => {
+exports.criarUsuario = functions.https.onRequest(async (request, response) => {
     try {
+        let body = JSON.parse(request.body);
+
         let usuario = {
-            nome: request.body.nome,
-            usuario: request.body.usuario,
-            email: request.body.email,
-            categorias: [
-                request.body.categorias,
-            ],
+            nome: body.nome,
+            usuario: body.usuario,
+            email: body.email,
+            categorias: body.categorias,
             grupo: {
-                ativo: false,
+                ativo: false
             },
             convites: [],
             solicitacoes: []
         }
 
-        firebase.firestore().collection('usuarios').add(usuario);
-        
+        // verificar se email e nome de usuário já existem
+
+        // console.log('Body: ', body);
+        // console.log('Usuario: ', usuario);
+
+        await firebase.firestore().collection('usuarios').add(usuario)
+        .then((snapshot) => {
+            console.log("id:", snapshot.id);
+        });
+
         let sucesso = {
             titulo: 'usuarioCriado',
             descricao: 'Usuário criado com sucesso.',
@@ -44,28 +46,35 @@ exports.criarUsuario = functions.https.onRequest((request, response) => {
     }
 });
 
-exports.criarGrupo = functions.https.onRequest((request, response) => {
+exports.criarGrupo = functions.https.onRequest(async (request, response) => {
     try {
+        let body = JSON.parse(request.body);
+
         let grupo = {
-            nome: request.body.nome,
-            administrador: request.body.administrador.id,
+            nome: body.nome,
+            administrador: body.administrador.id,
             categorias: [
-                request.body.categorias,
+                body.categorias,
             ],
             categoriasPendentes: [
-                request.body.categorias,
+                body.categorias,
             ],
             membros: [
                 {
-                    id: request.body.administrador.id,
-                    usuario: request.body.administrador.usuario,
+                    id: body.administrador.id,
+                    usuario: body.administrador.usuario,
                 }
             ],
             convites: [],
             solicitacoes: [],
         }
         
-        firebase.firestore().collection('grupos').add(grupo);	
+        // criar um slug para o grupo
+
+        await firebase.firestore().collection('grupos').add(grupo)
+        .then((snapshot) => {
+            console.log("id:", snapshot.id);
+        });	
         
         let sucesso = {
             titulo: 'grupoCriado',
@@ -84,8 +93,9 @@ exports.criarGrupo = functions.https.onRequest((request, response) => {
     }
 });
 
-exports.listagemUsuarios = functions.https.onRequest((request, response) => {
-	let grupo = firebase.firestore().collection('grupos').get(request.body.grupo.id);
+exports.listagemUsuarios = functions.https.onRequest(async (request, response) => {
+    let body = JSON.parse(request.body);
+	let grupo = await firebase.firestore().collection('grupos').doc(body.grupo.id).get().then((snapshot) => {grupo = snapshot.data();});
     let usuarios = [];
     
     let pendentes = grupo.categoriasPendentes;
@@ -99,7 +109,7 @@ exports.listagemUsuarios = functions.https.onRequest((request, response) => {
         response.send(erro);
     }
 
-	firebase.firestore().collection('usuarios').get()
+    await firebase.firestore().collection('usuarios').get()
 	.then((snapshot) => {
         snapshot.forEach((usuario) => {
             usuario.categorias.map((categoria) => {
@@ -155,9 +165,12 @@ exports.listagemUsuarios = functions.https.onRequest((request, response) => {
 });
 
 // deve mesmo ficar tão amarrado às categorias?
-exports.convidarUsuario = functions.https.onRequest((request, response) => {
-    let grupo = firestore().collection('grupos').get(request.body.grupo.id);
-	let usuario = firestore().collection('usuarios').get(request.body.usuario.id);
+exports.convidarUsuario = functions.https.onRequest(async (request, response) => {
+    let body = JSON.parse(request.body);
+    let grupo = {}
+    await firebase.firestore().collection('grupos').doc(body.grupo.id).get().then((snapshot) => {grupo = snapshot.data()});
+    let usuario = {};
+    await firebase.firestore().collection('usuarios').get(body.usuario.id);
 
     let pendentes = grupo.categoriasPendentes;
     let flag = false;
@@ -185,21 +198,21 @@ exports.convidarUsuario = functions.https.onRequest((request, response) => {
 
     if(flag) {
         usuario.convites.append({
-            grupo: request.body.grupo.id,
+            grupo: body.grupo.id,
             status: 'aguardando'
         });
 
         grupo.convites.append({
-            usuario: request.body.usuario.id,
+            usuario: body.usuario.id,
             status: 'aguardando'
         });
 
-        firebase.firestore().collection('grupos').doc(request.body.grupo.id).set(grupo)
-        firebase.firestore().collection('usuarios').doc(request.body.usuario.id).set(usuario)
+        await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo)
+        await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario)
     }
     
     if(usuarios.length === 0) {
-        var erro = {
+        let erro = {
             título: 'listaVazia',
             descricao: 'Não foi possível encontrar usuários com as categorias selecionadas.'
         }
@@ -211,22 +224,23 @@ exports.convidarUsuario = functions.https.onRequest((request, response) => {
     }
 });
 
-exports.aceitarConvite = functions.https.onRequest((request, response) => {
-    var usuario = firestore().collection('usuarios').get(request.body.usuario.id);
-    var grupo = firestore().collection('grupos').get(request.body.grupo.id);
+exports.aceitarConvite = functions.https.onRequest(async (request, response) => {
+    let body = JSON.parse(request.body);
+    let usuario = await firebase.firestore().collection('usuarios').get(body.usuario.id);
+    let grupo = await firebase.firestore().collection('grupos').get(body.grupo.id);
     
-    var erro = {
+    let erro = {
 		titulo: '',
 		descricao: ''
     };
 	
-	var sucesso = {
+	let sucesso = {
 		titulo: 'conviteAceito',
 		descricao: 'O convite foi aceito e o usuário foi adicionado ao grupo.'
 	};
     
     // flag que vai ser ativada caso o convite do grupo a ser aceito seja encontrado na lista de convites do usuario
-    var flag = false;
+    let flag = false;
 	
     if(usuario.grupo.ativo) {
         erro.titulo = 'usuarioJaEmGrupo';
@@ -235,19 +249,19 @@ exports.aceitarConvite = functions.https.onRequest((request, response) => {
         return erro;
     }
     else {
-        usuario.convites.map((convite) => {
-            if(convite.grupo === request.body.grupo.id) {
+        usuario.convites.map(async (convite) => {
+            if(convite.grupo === body.grupo.id) {
                 // define status do convite como aceito para o usuário
                 convite.status = 'aceito';
                 
                 // adiciona informações do grupo ao qual o usuário pertence
                 usuario.grupo.ativo = true;
-                usuario.grupo.id = request.body.grupo.id;
+                usuario.grupo.id = body.grupo.id;
                 usuario.grupo.nome = grupo.nome;
 
                 // adicionando usuario na lista de membros do grupo
                 let membro = {
-                    id: request.body.usuario.id,
+                    id: body.usuario.id,
                     usuario: usuario.usuario
                 }
 
@@ -255,14 +269,14 @@ exports.aceitarConvite = functions.https.onRequest((request, response) => {
 
                 // define status do convite como aceito no grupo
                 grupo.convites.map((convite) => {
-                    if(convite.usuario === request.body.usuario.id) {
+                    if(convite.usuario === body.usuario.id) {
                         convite.status = 'aceito';
                     }
                 });
 
-                // atualizando informações no firestore
-                firestore().collection('usuarios').doc(request.body.usuario.id).set(usuario);
-                firestore().collection('grupos').doc(request.body.grupo.id).set(grupo);
+                // atualizando inforawaitmações no firestore
+                await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario);
+                await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo);
 
                 flag = true;
             }
@@ -279,22 +293,23 @@ exports.aceitarConvite = functions.https.onRequest((request, response) => {
     }
 });
 
-exports.recusarConvite = functions.https.onRequest((request, response) => {
-    var usuario = firestore().collection('usuarios').get(request.body.usuario.id);
-    var grupo = firestore().collection('grupos').get(request.body.grupo.id);
+exports.recusarConvite = functions.https.onRequest(async (request, response) => {
+    let body = JSON.parse(request.body);
+    let usuario = await firebase.firestore().collection('usuarios').get(body.usuario.id);
+    let grupo = await firebase.firestore().collection('grupos').get(body.grupo.id);
     
-    var erro = {
+    let erro = {
 		titulo: '',
 		descricao: ''
     };
 	
-	var sucesso = {
+	let sucesso = {
 		titulo: 'conviteNegado',
 		descricao: 'O convite foi negado e o usuário não foi adicionado ao grupo.'
 	};
     
     // flag que vai ser ativada caso o convite do grupo a ser aceito seja encontrado na lista de convites do usuario
-    var flag = false;
+    let flag = false;
     
     // já faz parte de um grupo, realmente não tem porque negar convite
     if(usuario.grupo.ativo) {
@@ -304,21 +319,21 @@ exports.recusarConvite = functions.https.onRequest((request, response) => {
         return erro;
     }
     else {
-        usuario.convites.map((convite) => {
-            if(convite.grupo === request.body.grupo.id) {
+        usuario.convites.map(async (convite) => {
+            if(convite.grupo === body.grupo.id) {
                 // define status do convite como negado para o usuário
                 convite.status = 'negado';
 
                 // define status do convite como negado no grupo
                 grupo.convites.map((convite) => {
-                    if(convite.usuario === request.body.usuario.id) {
+                    if(convite.usuario === body.usuario.id) {
                         convite.status = 'negado';
                     }
                 });
 
-                // atualizando informações no firestore
-                firestore().collection('usuarios').doc(request.body.usuario.id).set(usuario);
-                firestore().collection('grupos').doc(request.body.grupo.id).set(grupo);
+                // atualizando inforawaitmações no firestore
+                await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario);
+                await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo);
 
                 flag = true;
             }
@@ -335,13 +350,15 @@ exports.recusarConvite = functions.https.onRequest((request, response) => {
     }
 });
 
-exports.listagemGrupos = functions.https.onRequest((request, response) => {
-    var usuario = firestore().collection('usuarios').get(request.body.usuario.id);
-    var grupos = [];
+exports.listagemGrupos = functions.https.onRequest(async (request, response) => {
+    let body = JSON.parse(request.body);
+    let usuario = await firebase.firestore().collection('usuarios').get(body.usuario.id);
+    let grupos = [];
 
-    firebase.firestore().collection('grupos').get()
+   await firebase.firestore().collection('grupos').get()
     .then((snapshot) => {
         snapshot.forEach((grupo) => {
+            console.log(JSON.stringify(grupo));
             // verificando somente pela quantidade total, e as quantidades de cada categoria? Acho que basta adicionar 
             // ... || grupos.membros.length < (gurpo.categorias.frontend + ... + grupo.categorias.gerente)) {
             if(grupo.membros.length < 5) {
@@ -380,7 +397,7 @@ exports.listagemGrupos = functions.https.onRequest((request, response) => {
     });
     
     if(grupos.length === 0) {
-        var erro = {
+        let erro = {
             título: 'listaVazia',
             descricao: 'Não foi possível encontrar grupos com as categorias selecionadas.'
         }
@@ -392,6 +409,6 @@ exports.listagemGrupos = functions.https.onRequest((request, response) => {
     }	
 });
 
-// https://firebase.google.com/docs/firestore/query-data/queries?authuser=0
+// https://firebase.googleawait.com/docs/firestore/query-data/queries?authuser=0
 // https://firebase.google.com/docs/functions/get-started?authuser=0
 // https://firebase.google.com/docs/functions/?authuser=0
