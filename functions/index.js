@@ -117,32 +117,23 @@ exports.listagemUsuarios = functions.https.onRequest(async (request, response) =
 	.then((snapshot) => {
         snapshot.forEach((usuario) => {
             usuario = usuario.data()
+
+            if(usuario.grupo.ativo) {
+                continue;
+            }
+
             usuario.categorias.map((categoria) => {
-                switch(categoria) {
-                    case 'backend':
-                        if(pendentes.backend > 0) {
-                            usuarios.push(usuario);
-                        }
-
-                        break;
-                    case 'frontend':
-                        if(pendentes.frontend > 0) {
-                            usuarios.push(usuario);
-                        }
-
-                        break;
-                    case 'designer':
-                        if(pendentes.designer > 0) {
-                            usuarios.push(usuario);
-                        }
-                        
-                        break;
-                    case 'gerente':
-                        if(pendentes.gerente > 0) {
-                            usuarios.push(usuario);
-                        }
-
-                        break;
+                if((pendentes.backend > 0) && (categoria === 'backend')) {
+                    usuarios.push(usuario);
+                }
+                else if((pendentes.frontend > 0) && (categoria === 'frontend')) {
+                    usuarios.push(usuario);
+                }
+                else if((pendentes.designer > 0) && (categoria === 'designer')) {
+                    usuarios.push(usuario);
+                }
+                else if((pendentes.gerente > 0) && (categoria === 'gerente')) {
+                    usuarios.push(usuario);
                 }
             });
         });
@@ -208,12 +199,12 @@ exports.convidarUsuario = functions.https.onRequest(async (request, response) =>
     // verificar se o usuario ja recebeu um convite desse grupo.
 
     if(flag) {
-        usuario.convites.append({
+        usuario.convites.push({
             grupo: body.grupo.id,
             status: 'aguardando'
         });
 
-        grupo.convites.append({
+        grupo.convites.push({
             usuario: body.usuario.id,
             status: 'aguardando'
         });
@@ -312,7 +303,7 @@ exports.aceitarConvite = functions.https.onRequest(async (request, response) => 
     }
 });
 
-exports.recusarConvite = functions.https.onRequest(async (request, response) => {
+exports.negarConvite = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
     let grupo = {}
     await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
@@ -397,31 +388,17 @@ exports.listagemGrupos = functions.https.onRequest(async (request, response) => 
                 let pendentes = grupo.categoriasPendentes;
 
                 usuario.categorias.map((categoria) => {
-                    switch(categoria) {
-                        case 'backend':
-                            if(pendentes.backend > 0) {
-                                grupos.push(grupo);
-                            }
-
-                            break;
-                        case 'frontend':
-                            if(pendentes.frontend > 0) {
-                                grupos.push(grupo);
-                            }
-
-                            break;
-                        case 'designer':
-                            if(pendentes.designer > 0) {
-                                grupos.push(grupo);
-                            }
-                            
-                            break;
-                        case 'gerente':
-                            if(pendentes.gerente > 0) {
-                                grupos.push(grupo);
-                            }
-
-                            break;
+                    if((pendentes.backend > 0) && (categoria === 'backend')) {
+                        grupos.push(grupo);
+                    }
+                    else if((pendentes.frontend > 0) && (categoria === 'frontend')) {
+                        grupos.push(grupo);
+                    }
+                    else if((pendentes.designer > 0) && (categoria === 'designer')) {
+                        grupos.push(grupo);
+                    }
+                    else if((pendentes.gerente > 0) && (categoria === 'gerente')) {
+                        grupos.push(grupo);
                     }
                 });
             }
@@ -439,6 +416,215 @@ exports.listagemGrupos = functions.https.onRequest(async (request, response) => 
     else {
         response.send(grupos);
     }	
+});
+
+// qualquer um, de qualquer categoria pode solicitar entrar em um grupo?
+exports.solicitarGrupo = functions.https.onRequest(async (request, response) => {
+    let body = JSON.parse(request.body);
+
+    let grupo = {}
+    await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
+    .then((snapshot) => {
+        grupo = snapshot.data()
+    });
+
+    let usuario = {};
+    await firebase.firestore().collection('usuarios').doc(body.usuario.id).get()
+    .then((snapshot) => {
+        usuario = snapshot.data()
+    });
+
+    let erro = {
+        titulo = '',
+        descricao = ''
+    };
+
+    // verificar se o usuario ja fez uma solicitacao a esse grupo.
+
+    if(usuario.grupo.ativo) {
+        erro.titulo = 'usuarioJaEmGrupo';
+        erro.descricao = 'O usuário já faz parte de um grupo.';
+
+        response.send(erro);
+    }
+    else if(grupo.membros.length === 5) {
+        // verificar também a quantidade de convites ativos / categorias pendentes
+        erro.titulo = 'grupoCheio';
+        erro.descricao = 'O grupo solicitado já está cheio.';
+
+        response.send(erro);
+    }
+    else {
+        usuario.solicitacoes.push({
+            grupo: body.grupo.id,
+            status: 'aguardando'
+        });
+
+        grupo.solicitacoes.push({
+            usuario: body.usuario.id,
+            status: 'aguardando'
+        });
+
+        await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo)
+        await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario)
+    }
+    
+    response.send(usuarios);
+});
+
+exports.aceitarSolicitacao = functions.https.onRequest(async (request, response) => {
+    let body = JSON.parse(request.body);
+
+    let grupo = {}
+    await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
+    .then((snapshot) => {
+        grupo = snapshot.data()
+    });
+
+    let usuario = {};
+    await firebase.firestore().collection('usuarios').doc(body.usuario.id).get()
+    .then((snapshot) => {
+        usuario = snapshot.data()
+    });
+    
+    let erro = {
+		titulo: '',
+		descricao: ''
+    };
+	
+	let sucesso = {
+		titulo: 'solicitacaoAceita',
+		descricao: 'A solicitação foi aceita e o usuário foi adicionado ao grupo.'
+	};
+    
+    // flag que vai ser ativada caso o convite do grupo a ser aceito seja encontrado na lista de convites do usuario
+    let flag = false;
+	
+    if(usuario.grupo.ativo) {
+        erro.titulo = 'usuarioJaEmGrupo';
+        erro.descricao = 'O usuário já faz parte de um grupo.';
+            
+        return erro;
+    }
+    else if(grupo.membros.length === 5) {
+        // verificar também a quantidade de convites ativos / categorias pendentes
+        erro.titulo = 'grupoCheio';
+        erro.descricao = 'O grupo já está cheio, portanto não pode aceitar mais solicitações.';
+
+        response.send(erro);
+    }
+    else {
+        // decrescer a quantidade de pendencias para a categoria do usuario aceito
+        grupo.solicitacoes.map(async (solicitacao) => {
+            if(solicitacao.usuario === body.usuario.id) {
+                // define status da solicitacao como aceita para o grupo
+                solicitacao.status = 'aceito';
+                
+                // adiciona informações do grupo ao qual o usuário pertence
+                usuario.grupo.ativo = true;
+                usuario.grupo.id = body.grupo.id;
+                usuario.grupo.nome = grupo.nome;
+
+                // adicionando usuario na lista de membros do grupo
+                let membro = {
+                    id: body.usuario.id,
+                    usuario: usuario.usuario
+                }
+
+                grupo.membros.push(membro);
+
+                // define status da solicitacao como aceita no usuário
+                usuario.solicitacoes.map((solicitacao) => {
+                    if(solicitacao.grupo === body.grupo.id) {
+                        solicitacao.status = 'aceito';
+                    }
+                });
+
+                // atualizando inforawaitmações no firestore
+                await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario);
+                await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo);
+
+                flag = true;
+            }
+        });
+    }
+    if(flag) {
+        response.send(sucesso);
+    }
+    else {
+        erro.titulo = 'solicitacaoNaoEncontrado'
+        erro.descricao = 'O grupo não possui solicitação do usuário citado.'
+        
+        response.send(erro);
+    }
+});
+
+exports.negarSolicitacao = functions.https.onRequest(async (request, response) => {
+    let body = JSON.parse(request.body);
+
+    let grupo = {}
+    await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
+    .then((snapshot) => {
+        grupo = snapshot.data()
+    });
+
+    let usuario = {};
+    await firebase.firestore().collection('usuarios').doc(body.usuario.id).get()
+    .then((snapshot) => {
+        usuario = snapshot.data()
+    });
+    
+    let erro = {
+		titulo: '',
+		descricao: ''
+    };
+	
+	let sucesso = {
+		titulo: 'solicitacaoNegada',
+		descricao: 'A solicitacao foi negada e o usuário não foi adicionado ao grupo.'
+	};
+    
+    // flag que vai ser ativada caso o convite do grupo a ser aceito seja encontrado na lista de convites do usuario
+    let flag = false;
+    
+    // já faz parte de um grupo, realmente não tem porque negar convite
+    if(usuario.grupo.ativo) {
+        erro.titulo = 'usuarioJaEmGrupo';
+        erro.descricao = 'O usuário já faz parte de um grupo.';
+            
+        return erro;
+    }
+    else {
+        grupo.solicitacoes.map(async (solicitacao) => {
+            if(solicitacao.usuario === body.usuario.id) {
+                // define status da solicitacao como negada para o grupo
+                solicitacao.status = 'negado';
+
+                // define status da solicitacao como negada no usuário
+                usuario.solicitacoes.map((solicitacao) => {
+                    if(solicitacao.grupo === body.grupo.id) {
+                        solicitacao.status = 'negado';
+                    }
+                });
+
+                // atualizando inforawaitmações no firestore
+                await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario);
+                await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo);
+
+                flag = true;
+            }
+        });
+    }
+
+    if(flag) {
+        response.send(sucesso);
+    }
+    else {
+        erro.titulo = 'solicitacaoNaoEncontrada'
+        erro.descricao = 'O grupo não possui solicitação do usuário citado.'
+        
+        response.send(erro);
+    }
 });
 
 // https://firebase.googleawait.com/docs/firestore/query-data/queries?authuser=0
