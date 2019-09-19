@@ -116,6 +116,7 @@ exports.listagemUsuarios = functions.https.onRequest(async (request, response) =
     await firebase.firestore().collection('usuarios').get()
 	.then((snapshot) => {
         snapshot.forEach((usuario) => {
+            usuario = usuario.data()
             usuario.categorias.map((categoria) => {
                 switch(categoria) {
                     case 'backend':
@@ -388,7 +389,8 @@ exports.listagemGrupos = functions.https.onRequest(async (request, response) => 
    await firebase.firestore().collection('grupos').get()
     .then((snapshot) => {
         snapshot.forEach((grupo) => {
-            console.log(JSON.stringify(grupo));
+            grupo = grupo.data();
+            console.log(grupo);
             // verificando somente pela quantidade total, e as quantidades de cada categoria? Acho que basta adicionar 
             // ... || grupos.membros.length < (gurpo.categorias.frontend + ... + grupo.categorias.gerente)) {
             if(grupo.membros.length < 5) {
@@ -435,7 +437,7 @@ exports.listagemGrupos = functions.https.onRequest(async (request, response) => 
         response.send(erro);
     }
     else {
-        response.send(usuarios);
+        response.send(grupos);
     }	
 });
 
