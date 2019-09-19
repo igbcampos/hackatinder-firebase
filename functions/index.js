@@ -95,7 +95,11 @@ exports.criarGrupo = functions.https.onRequest(async (request, response) => {
 
 exports.listagemUsuarios = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
-	let grupo = await firebase.firestore().collection('grupos').doc(body.grupo.id).get().then((snapshot) => {grupo = snapshot.data();});
+	let grupo = {};
+    await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
+    .then((snapshot) => {
+        grupo = snapshot.data();
+    });
     let usuarios = [];
     
     let pendentes = grupo.categoriasPendentes;
@@ -168,9 +172,15 @@ exports.listagemUsuarios = functions.https.onRequest(async (request, response) =
 exports.convidarUsuario = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
     let grupo = {}
-    await firebase.firestore().collection('grupos').doc(body.grupo.id).get().then((snapshot) => {grupo = snapshot.data()});
+    await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
+    .then((snapshot) => {
+        grupo = snapshot.data()
+    });
     let usuario = {};
-    await firebase.firestore().collection('usuarios').get(body.usuario.id);
+    await firebase.firestore().collection('usuarios').doc(body.usuario.id).get()
+    .then((snapshot) => {
+        usuario = snapshot.data()
+    });
 
     let pendentes = grupo.categoriasPendentes;
     let flag = false;
@@ -226,8 +236,16 @@ exports.convidarUsuario = functions.https.onRequest(async (request, response) =>
 
 exports.aceitarConvite = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
-    let usuario = await firebase.firestore().collection('usuarios').get(body.usuario.id);
-    let grupo = await firebase.firestore().collection('grupos').get(body.grupo.id);
+    let grupo = {}
+    await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
+    .then((snapshot) => {
+        grupo = snapshot.data()
+    });
+    let usuario = {};
+    await firebase.firestore().collection('usuarios').doc(body.usuario.id).get()
+    .then((snapshot) => {
+        usuario = snapshot.data()
+    });
     
     let erro = {
 		titulo: '',
@@ -295,8 +313,16 @@ exports.aceitarConvite = functions.https.onRequest(async (request, response) => 
 
 exports.recusarConvite = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
-    let usuario = await firebase.firestore().collection('usuarios').get(body.usuario.id);
-    let grupo = await firebase.firestore().collection('grupos').get(body.grupo.id);
+    let grupo = {}
+    await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
+    .then((snapshot) => {
+        grupo = snapshot.data()
+    });
+    let usuario = {};
+    await firebase.firestore().collection('usuarios').doc(body.usuario.id).get()
+    .then((snapshot) => {
+        usuario = snapshot.data()
+    });
     
     let erro = {
 		titulo: '',
@@ -352,7 +378,11 @@ exports.recusarConvite = functions.https.onRequest(async (request, response) => 
 
 exports.listagemGrupos = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
-    let usuario = await firebase.firestore().collection('usuarios').get(body.usuario.id);
+    let usuario = {};
+    await firebase.firestore().collection('usuarios').doc(body.usuario.id).get()
+    .then((snapshot) => {
+        usuario = snapshot.data()
+    });
     let grupos = [];
 
    await firebase.firestore().collection('grupos').get()
