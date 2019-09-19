@@ -95,11 +95,13 @@ exports.criarGrupo = functions.https.onRequest(async (request, response) => {
 
 exports.listagemUsuarios = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
+
 	let grupo = {};
     await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
     .then((snapshot) => {
         grupo = snapshot.data();
     });
+
     let usuarios = [];
     
     let pendentes = grupo.categoriasPendentes;
@@ -118,24 +120,22 @@ exports.listagemUsuarios = functions.https.onRequest(async (request, response) =
         snapshot.forEach((usuario) => {
             usuario = usuario.data()
 
-            if(usuario.grupo.ativo) {
-                continue;
+            if(!usuario.grupo.ativo) {
+                usuario.categorias.map((categoria) => {
+                    if((pendentes.backend > 0) && (categoria === 'backend')) {
+                        usuarios.push(usuario);
+                    }
+                    else if((pendentes.frontend > 0) && (categoria === 'frontend')) {
+                        usuarios.push(usuario);
+                    }
+                    else if((pendentes.designer > 0) && (categoria === 'designer')) {
+                        usuarios.push(usuario);
+                    }
+                    else if((pendentes.gerente > 0) && (categoria === 'gerente')) {
+                        usuarios.push(usuario);
+                    }
+                });
             }
-
-            usuario.categorias.map((categoria) => {
-                if((pendentes.backend > 0) && (categoria === 'backend')) {
-                    usuarios.push(usuario);
-                }
-                else if((pendentes.frontend > 0) && (categoria === 'frontend')) {
-                    usuarios.push(usuario);
-                }
-                else if((pendentes.designer > 0) && (categoria === 'designer')) {
-                    usuarios.push(usuario);
-                }
-                else if((pendentes.gerente > 0) && (categoria === 'gerente')) {
-                    usuarios.push(usuario);
-                }
-            });
         });
     })
     .catch((error) => {
@@ -163,11 +163,13 @@ exports.listagemUsuarios = functions.https.onRequest(async (request, response) =
 // deve mesmo ficar tão amarrado às categorias?
 exports.convidarUsuario = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
+
     let grupo = {}
     await firebase.firestore().collection('grupos').doc(body.grupo.id).get()
     .then((snapshot) => {
         grupo = snapshot.data()
     });
+
     let usuario = {};
     await firebase.firestore().collection('usuarios').doc(body.usuario.id).get()
     .then((snapshot) => {
@@ -222,7 +224,12 @@ exports.convidarUsuario = functions.https.onRequest(async (request, response) =>
         response.send(erro);
     }
     else {
-        response.send(usuarios);
+        let sucesso = {
+            titulo: 'conviteEnviado',
+            descricao: 'O convite foi enviado ao usuário.'
+        };
+    
+        response.send(sucesso);
     }
 });
 
@@ -433,10 +440,10 @@ exports.solicitarGrupo = functions.https.onRequest(async (request, response) => 
     .then((snapshot) => {
         usuario = snapshot.data()
     });
-
+    
     let erro = {
-        titulo = '',
-        descricao = ''
+		titulo: '',
+		descricao: ''
     };
 
     // verificar se o usuario ja fez uma solicitacao a esse grupo.
@@ -468,6 +475,11 @@ exports.solicitarGrupo = functions.https.onRequest(async (request, response) => 
         await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo)
         await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario)
     }
+
+    let sucesso = {
+        titulo: 'solicitacaoEnviada',
+        descricao: 'A silicitação foi enviada ao grupo.'
+    };
     
     response.send(usuarios);
 });
