@@ -52,17 +52,13 @@ exports.criarGrupo = functions.https.onRequest(async (request, response) => {
 
         let grupo = {
             nome: body.nome,
-            administrador: body.administrador.id,
-            categorias: [
-                body.categorias,
-            ],
-            categoriasPendentes: [
-                body.categorias,
-            ],
+            administrador: body.usuario.id,
+            categorias: body.categorias,
+            categoriasPendentes: body.categorias,
             membros: [
                 {
-                    id: body.administrador.id,
-                    usuario: body.administrador.usuario,
+                    id: body.usuario.id,
+                    usuario: body.usuario.usuario,
                 }
             ],
             convites: [],
@@ -179,24 +175,34 @@ exports.convidarUsuario = functions.https.onRequest(async (request, response) =>
     let pendentes = grupo.categoriasPendentes;
     let flag = false;
 
-    usuario.categorias.map((categoria) => {
-        if((pendentes.backend > 0) && (categoria === 'backend')) {
-            flag = true;
-            pendentes.backend -= 1;
-        }
-        else if((pendentes.frontend > 0) && (categoria === 'frontend')) {
-            flag = true;
-            pendentes.frontend -= 1;
-        }
-        else if((pendentes.designer > 0) && (categoria === 'designer')) {
-            flag = true;
-            pendentes.designer -= 1;
-        }
-        else if((pendentes.gerente > 0) && (categoria === 'gerente')) {
-            flag = true;
-            pendentes.gerente -= 1;
-        }
-    });
+    if(usuario.grupo.ativo) {
+        let erro = {
+            titulo: 'usuarioJaEmGrupo',
+            descricao: 'O usuário já faz parte de um grupo.'
+        };
+
+        response.send(erro);
+    }
+    else {
+        usuario.categorias.map((categoria) => {
+            if((pendentes.backend > 0) && (categoria === 'backend')) {
+                flag = true;
+                pendentes.backend -= 1;
+            }
+            else if((pendentes.frontend > 0) && (categoria === 'frontend')) {
+                flag = true;
+                pendentes.frontend -= 1;
+            }
+            else if((pendentes.designer > 0) && (categoria === 'designer')) {
+                flag = true;
+                pendentes.designer -= 1;
+            }
+            else if((pendentes.gerente > 0) && (categoria === 'gerente')) {
+                flag = true;
+                pendentes.gerente -= 1;
+            }
+        });
+    }
 
     // verificar se o usuario ja recebeu um convite desse grupo.
 
@@ -213,17 +219,7 @@ exports.convidarUsuario = functions.https.onRequest(async (request, response) =>
 
         await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo)
         await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario)
-    }
     
-    if(usuarios.length === 0) {
-        let erro = {
-            título: 'listaVazia',
-            descricao: 'Não foi possível encontrar usuários com as categorias selecionadas.'
-        }
-
-        response.send(erro);
-    }
-    else {
         let sucesso = {
             titulo: 'conviteEnviado',
             descricao: 'O convite foi enviado ao usuário.'
@@ -233,6 +229,7 @@ exports.convidarUsuario = functions.https.onRequest(async (request, response) =>
     }
 });
 
+// negar outros convites e solicitacoes do usuario
 exports.aceitarConvite = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
     let grupo = {}
@@ -299,6 +296,7 @@ exports.aceitarConvite = functions.https.onRequest(async (request, response) => 
             }
         });
     }
+
     if(flag) {
         response.send(sucesso);
     }
@@ -364,6 +362,7 @@ exports.negarConvite = functions.https.onRequest(async (request, response) => {
             }
         });
     }
+
     if(flag) {
         response.send(sucesso);
     }
@@ -472,18 +471,19 @@ exports.solicitarGrupo = functions.https.onRequest(async (request, response) => 
             status: 'aguardando'
         });
 
-        await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo)
-        await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario)
-    }
+        await firebase.firestore().collection('grupos').doc(body.grupo.id).set(grupo);
+        await firebase.firestore().collection('usuarios').doc(body.usuario.id).set(usuario);
 
-    let sucesso = {
-        titulo: 'solicitacaoEnviada',
-        descricao: 'A silicitação foi enviada ao grupo.'
-    };
-    
-    response.send(usuarios);
+        let sucesso = {
+            titulo: 'solicitacaoEnviada',
+            descricao: 'A silicitação foi enviada ao grupo.'
+        };
+        
+        response.send(sucesso);
+    }
 });
 
+// negar outros convites e solicitacoes do usuario
 exports.aceitarSolicitacao = functions.https.onRequest(async (request, response) => {
     let body = JSON.parse(request.body);
 
@@ -560,6 +560,7 @@ exports.aceitarSolicitacao = functions.https.onRequest(async (request, response)
             }
         });
     }
+
     if(flag) {
         response.send(sucesso);
     }
